@@ -362,39 +362,7 @@ class KnexAdapter extends BaseAdapter {
 		if (params) {
 			const query = params.query ? Object.assign({}, params.query) : {};
 
-			Object.entries(query).forEach(([key, value]) => {
-				if (typeof value == "object") {
-					if (value.$in && Array.isArray(value.$in)) {
-						q = q.whereIn(key, value.$in);
-					} else if (value.$nin && Array.isArray(value.$nin)) {
-						q = q.whereNotIn(key, value.$nin);
-					} else if (value.$gt) {
-						q = q.where(key, ">", value.$gt);
-					} else if (value.$gte) {
-						q = q.where(key, ">=", value.$gte);
-					} else if (value.$lt) {
-						q = q.where(key, "<", value.$lt);
-					} else if (value.$lte) {
-						q = q.where(key, "<=", value.$lte);
-					} else if (value.$eq) {
-						q = q.where(key, "=", value.$eq);
-					} else if (value.$ne) {
-						q = q.where(key, "=", value.$ne);
-					} else if (value.$exists === true) {
-						q = q.whereNotNull(key);
-					} else if (value.$exists === false) {
-						q = q.whereNull(key);
-					} else if (value.$raw) {
-						if (typeof value.$raw == "string") {
-							q = q.whereRaw(value.$raw);
-						} else if (typeof value.$raw == "object") {
-							q = q.whereRaw(value.$raw.condition, value.$raw.bindings);
-						}
-					}
-				} else {
-					q = q.where(key, value);
-				}
-			});
+			q = this.computeQuery(q, query)
 
 			// Text search
 			if (_.isString(params.search) && params.search !== "" && params.searchFields) {
@@ -431,6 +399,75 @@ class KnexAdapter extends BaseAdapter {
 
 		// If not params
 		return q;
+	}
+
+	/**
+	 * Compute recursive query based on operators
+	 *
+	 * @param {Query} q
+	 * @param {Object} query
+	 * @param {String?} fieldName
+	 * @returns {Query}
+	 * @memberof MemoryDbAdapter
+	 */
+	computeQuery(q, query, fieldName = '') {
+		if (typeof query !== "object" || Array.isArray(query)) return q
+
+		const assignQueryArrayElements = (builder, value, firstElementQuery = 'where', everyOtherElementQuery = '') => {
+			return value.forEach((query, i) => {
+				const fn = i == 0 ? firstElementQuery : (everyOtherElementQuery || firstElementQuery);
+				builder[fn]((innerBuilder) => this.computeQuery(innerBuilder, query, fieldName))
+			})
+		}
+
+		Object.entries(query).forEach(([key, fieldValue]) => {
+			// Checking operators
+			if (key === "$in" && Array.isArray(fieldValue)) { // Comparison query operators
+				q = q.whereIn(fieldName, fieldValue);
+			} else if (fieldName === "$nin" && Array.isArray(fieldValue)) {
+				q = q.whereNotIn(key, fieldValue);
+			} else if (key === "$gt") {
+				q = q.where(fieldName, ">", fieldValue);
+			} else if (key === "$gte") {
+				q = q.where(fieldName, ">=", fieldValue);
+			} else if (key === "$lt") {
+				q = q.where(fieldName, "<", fieldValue);
+			} else if (key === "$lte") {
+				q = q.where(fieldName, "<=", fieldValue);
+			} else if (key === "$eq") {
+				q = q.where(fieldName, "=", fieldValue);
+			} else if (key === "$ne") {
+				q = q.where(fieldName, "!=", fieldValue);
+			} else if (key === "$exists" && fieldValue === true) { // Element query operators
+				q = q.whereNotNull(fieldName);
+			} else if (key === "$exists" && fieldValue === false) {
+				q = q.whereNull(fieldName);
+			} else if (key === "$or" && Array.isArray(fieldValue)) { // Logical query operators
+				q = q.where((builder) => assignQueryArrayElements(builder, fieldValue, 'where', 'orWhere'));
+			} else if (key === "$and" && Array.isArray(fieldValue)) {
+				q = q.where((builder) => assignQueryArrayElements(builder, fieldValue));
+			} else if (key === "$nor" && Array.isArray(fieldValue)) {
+				q = q.where((builder) => assignQueryArrayElements(builder, fieldValue, 'whereNot'));
+			} else if (key === "$not") {
+				if (typeof fieldValue === "object") {
+					q = q.whereNot((builder) => this.computeQuery(builder, fieldValue, fieldName))
+				} else {
+					q = q.whereNot(fieldName, fieldValue)
+				}
+			} else if (key === "$raw") { // custom query operator
+				if (typeof fieldValue == "string") {
+					q = q.whereRaw(fieldValue);
+				} else if (typeof fieldValue == "object") {
+					q = q.whereRaw(fieldValue.condition, fieldValue.bindings);
+				}
+			} else if (typeof fieldValue === "object") { // inheritance of query operators
+				q = q.where((builder) => this.computeQuery(builder, fieldValue, key))
+			} else { // default operator
+				q = q.where(key, fieldValue)
+			}
+		})
+
+		return q
 	}
 
 	/**
