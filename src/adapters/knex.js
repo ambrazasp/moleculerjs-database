@@ -362,7 +362,7 @@ class KnexAdapter extends BaseAdapter {
 		if (params) {
 			const query = params.query ? Object.assign({}, params.query) : {};
 
-			q = this.computeQuery(q, query)
+			q = this.computeQuery(q, query);
 
 			// Text search
 			if (_.isString(params.search) && params.search !== "" && params.searchFields) {
@@ -411,12 +411,12 @@ class KnexAdapter extends BaseAdapter {
 	 * @memberof MemoryDbAdapter
 	 */
 	computeQuery(q, query, fieldName = '') {
-		if (typeof query !== "object" || Array.isArray(query)) return q
+		if (typeof query !== "object" || Array.isArray(query)) return q;
 
 		const assignQueryArrayElements = (builder, value, firstElementQuery = 'where', everyOtherElementQuery = '') => {
 			return value.forEach((query, i) => {
 				const fn = i == 0 ? firstElementQuery : (everyOtherElementQuery || firstElementQuery);
-				builder[fn]((innerBuilder) => this.computeQuery(innerBuilder, query, fieldName))
+				builder[fn]((innerBuilder) => this.computeQuery(innerBuilder, query, fieldName));
 			})
 		}
 
@@ -450,9 +450,9 @@ class KnexAdapter extends BaseAdapter {
 				q = q.where((builder) => assignQueryArrayElements(builder, fieldValue, 'whereNot'));
 			} else if (key === "$not") {
 				if (typeof fieldValue === "object") {
-					q = q.whereNot((builder) => this.computeQuery(builder, fieldValue, fieldName))
+					q = q.whereNot((builder) => this.computeQuery(builder, fieldValue, fieldName));
 				} else {
-					q = q.whereNot(fieldName, fieldValue)
+					q = q.whereNot(fieldName, fieldValue);
 				}
 			} else if (key === "$raw") { // custom query operator
 				if (typeof fieldValue == "string") {
@@ -461,13 +461,13 @@ class KnexAdapter extends BaseAdapter {
 					q = q.whereRaw(fieldValue.condition, fieldValue.bindings);
 				}
 			} else if (typeof fieldValue === "object") { // inheritance of query operators
-				q = q.where((builder) => this.computeQuery(builder, fieldValue, key))
+				q = q.where((builder) => this.computeQuery(builder, fieldValue, key));
 			} else { // default operator
-				q = q.where(key, fieldValue)
+				q = q.where(key, fieldValue);
 			}
 		})
 
-		return q
+		return q;
 	}
 
 	/**
