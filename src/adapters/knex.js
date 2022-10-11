@@ -424,8 +424,8 @@ class KnexAdapter extends BaseAdapter {
 			// Checking operators
 			if (key === "$in" && Array.isArray(fieldValue)) { // Comparison query operators
 				q = q.whereIn(fieldName, fieldValue);
-			} else if (fieldName === "$nin" && Array.isArray(fieldValue)) {
-				q = q.whereNotIn(key, fieldValue);
+			} else if (key === "$nin" && Array.isArray(fieldValue)) {
+				q = q.whereNotIn(fieldName, fieldValue);
 			} else if (key === "$gt") {
 				q = q.where(fieldName, ">", fieldValue);
 			} else if (key === "$gte") {
