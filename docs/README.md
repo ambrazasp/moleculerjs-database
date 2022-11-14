@@ -16,8 +16,10 @@ The options of the Mixin.
 | `cache.eventType` | `String` | `"broadcast"` | Type of the broadcasted event. It can be `"broadcast"`, or `"emit"`. If `null`, the sending of the event is disabled. |
 | `cache.cacheCleanOnDeps` | `Boolean\|Array<String>` | `true` | Subscribe to the cache clean event of the service dependencies and clear the local cache entries. If it's an `Array<String>`, it should be the exact event names. |
 | `cache.additionalKeys` | `Array<String>` | `null` | Additional cache keys. |
+| `cache.cacheCleaner` | `Function` | `null` | Custom cache cleaner function. |
 | `rest` | `Boolean` | `true` | Set the API Gateway auto-aliasing REST properties in the service & actions. |
 | `entityChangedEventType` | `String` | `"broadcast"` | Type of the entity changed event. Values: `null`, `"broadcast"`, `"emit"`. The value `null` disables the sending of events. |
+| `entityChangedOldEntity` | `Boolean` | `false` | Add previous entity data to the entity changed event payload in case of update or replace. |
 | `autoReconnect` | `Boolean` | `true` | Automatic reconnect if the DB server is not available when connecting for the first time. |
 | `maximumAdapters` | `Number` | `null` | Maximum number of connected adapters. In case of multi-tenancy. |
 | `maxLimit` | `Number` | `-1` | Maximum value of `limit` in `find` action and `pageSize` in `list` action. Default: `-1` (no limit) |
@@ -143,6 +145,16 @@ For ID fields set the `primaryKey` to true. The service knows the name of the ID
 ```js
 {
     id: { type: "string", primaryKey: true, columnName: "_id" }
+}
+```
+
+#### User-defined primary key
+If you would like to set the primary key values instead of database generate them, set the `generated: "user"` property into the primary key field definition.
+
+**Example**
+```js
+{
+    id: { type: "string", primaryKey: true, generated: "user", columnName: "_id" }
 }
 ```
 
@@ -871,6 +883,7 @@ Resolve an entity based on one or more IDs.
 | `populate` | `String\|Array<String>` | `null` | Populated fields. |
 | `mapping` | `boolean` | `false` | Convert the result to `Object` where the key is the ID. |
 | `throwIfNotExist` | `boolean` | `false` | If `true`, the error `EntityNotFound` is thrown if the entity does not exist. |
+| `reorderResult` | `boolean` | `false` | If `true` and the ID is an array, the result will be reordered according to the order of IDs. |
 
 
 ### REST endpoint
@@ -1279,6 +1292,7 @@ Return entity(ies) by ID(s).
 | `opts` | `Object` | `{}` | Other options for internal methods. |
 | `opts.transform` | `Boolean` | `true` | If `false`, the result won't be transformed. |
 | `opts.throwIfNotExist` | `boolean` | `false` | If `true`, the error `EntityNotFound` is thrown if the entity does not exist. |
+| `opts.reorderResult` | `boolean` | `false` | If `true` and the ID is an array, the result will be reordered according to the order of IDs. |
 
 
 ## `createEntity`
@@ -1326,6 +1340,7 @@ Update an existing entity. Only the specified fields will be updated.
 | `opts.raw` | `Boolean` | `false` | If `true`, the `params` is passed directly to the database client. |
 | `opts.transform` | `Boolean` | `true` | If `false`, the result won't be transformed. |
 | `opts.permissive` | `Boolean` | `false` | If `true`, readonly and immutable fields can be set and update and field permission is not checked. |
+| `opts.scope` | `String|Array<String>|Boolean` | `null` |Scopes for the query. If false, the default scopes are disabled. |
 
 It returns the updated entity.
 
@@ -1341,6 +1356,7 @@ Update multiple entities by a query. Only the specified fields will be updated.
 | `params` | `Object` | `null` | Parameters for method. |
 | `params.query` | `Object` | `null` | The query for finding entities. |
 | `params.changes` | `Object` | `null` | It contains the changed field values. |
+| `params.scope` | `String|Array<String>|Boolean` | `null` |Scopes for the query. If false, the default scopes are disabled. |
 | `opts` | `Object` | `{}` | Other options for internal methods. |
 | `opts.raw` | `Boolean` | `false` | If `true`, the `params` is passed directly to the database client. |
 | `opts.transform` | `Boolean` | `true` | If `false`, the result won't be transformed. |
@@ -1361,6 +1377,7 @@ Replace an existing entity.
 | `opts` | `Object` | `{}` | Other options for internal methods. |
 | `opts.transform` | `Boolean` | `true` | If `false`, the result won't be transformed. |
 | `opts.permissive` | `Boolean` | `false` | If `true`, readonly and immutable fields can be set and update and field permission is not checked. |
+| `opts.scope` | `String|Array<String>|Boolean` | `null` |Scopes for the query. If false, the default scopes are disabled. |
 
 It returns the replaced entity.
 
@@ -1376,6 +1393,8 @@ Delete an entity by ID.
 | `params` | `Object` | `null` | It contains the entity ID. |
 | `opts` | `Object` | `{}` | Other options for internal methods. |
 | `opts.transform` | `Boolean` | `true` | If `false`, the result won't be transformed. |
+| `opts.scope` | `String|Array<String>|Boolean` | `null` |Scopes for the query. If false, the default scopes are disabled. |
+| `opts.softDelete` | `Boolean` | `null` | Disable the enabled soft-delete feature. Only `false` value is acceptable. |
 
 The method returns only the ID of the deleted entity.
 
@@ -1390,15 +1409,17 @@ Delete multiple entities by a query.
 | `ctx` | `Context` | `null` | Moleculer `Context` instance. It can be `null`. |
 | `params` | `Object` | `null` | Parameters for method. |
 | `params.query` | `Object` | `null` | The query for finding entities. |
+| `params.scope` | `String|Array<String>|Boolean` | `null` |Scopes for the query. If false, the default scopes are disabled. |
 | `opts` | `Object` | `{}` | Other options for internal methods. |
 | `opts.transform` | `Boolean` | `true` | If `false`, the result won't be transformed. |
+| `opts.softDelete` | `Boolean` | `null` | Disable the enabled soft-delete feature. Only `false` value is acceptable. |
 
 The method returns only the ID of all deleted entities.
 
 ## `clearEntities`
 `clearEntities(ctx?: Context, params: object)`
 
-Delete all entities in the table/collection.
+Delete all entities in the table/collection. _Please note, it doesn't take into account the scopes and soft delete features._
 
 ### Parameters
 | Property | Type | Default | Description |
@@ -1464,7 +1485,7 @@ Please note that if you have many tenants, the service will open many connection
 _It can be asynchronous._
 
 ## `entityChanged`
-`entityChanged(type: String, data?: any, ctx?: Context, opts?: object)`
+`entityChanged(type: String, data?: any, oldData?: any ctx?: Context, opts?: object)`
 
 It's a method that is called when an entity is created, updated, replaced or removed. You can use it to clear the cache or send an event.
 
@@ -1475,6 +1496,7 @@ There is a default implementation that sends an entity change events. [Read more
 | -------- | ---- | ----------- |
 | `type` | `String` | Type of changes. Available values: `create`, `update`, `replace`, `remove`, `clear`. |
 | `data` | `Object\|Array<Object>` | Changed entity or entities. |
+| `oldData` | `Object` | Previous entity in case of update/replace. |
 | `ctx` | `Context` | Moleculer `Context` instance. It can be `null`. |
 | `opts` | `Object` | Additional options. |
 | `opts.batch` | `Boolean` | It's true when the operation has affected more entities. |

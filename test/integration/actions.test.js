@@ -122,7 +122,7 @@ module.exports = (getAdapter, adapterType) => {
 				});
 
 				expect(entityChanged).toBeCalledTimes(1);
-				expect(entityChanged).toBeCalledWith("create", doc, expect.any(Context), {});
+				expect(entityChanged).toBeCalledWith("create", doc, null, expect.any(Context), {});
 			});
 
 			it("should get the newly created entity", async () => {
@@ -248,9 +248,23 @@ module.exports = (getAdapter, adapterType) => {
 					});
 
 					expect(entityChanged).toBeCalledTimes(1);
-					expect(entityChanged).toBeCalledWith("update", doc, expect.any(Context), {
-						raw: true
-					});
+					expect(entityChanged).toBeCalledWith(
+						"update",
+						doc,
+						{
+							id: expectedID,
+							title: "First post",
+							content: "Content of first post",
+							author: "John Doe",
+							votes: 0,
+							status: true,
+							createdAt: expect.any(Number)
+						},
+						expect.any(Context),
+						{
+							raw: true
+						}
+					);
 				});
 
 				it("should get the newly created entity", async () => {
@@ -301,7 +315,32 @@ module.exports = (getAdapter, adapterType) => {
 				});
 
 				expect(entityChanged).toBeCalledTimes(1);
-				expect(entityChanged).toBeCalledWith("update", doc, expect.any(Context), {});
+				expect(entityChanged).toBeCalledWith(
+					"update",
+					doc,
+					adapterType == "MongoDB" || adapterType == "NeDB"
+						? {
+								id: expectedID,
+								author: "John Doe",
+								content: "Updated content of first title",
+								createdAt: expect.any(Number),
+								status: true,
+								title: "Updated title",
+								votes: 1
+						  }
+						: {
+								id: expectedID,
+								author: "John Doe",
+								content: "Content of first post",
+								createdAt: expect.any(Number),
+								updatedAt: null,
+								status: true,
+								title: "First post",
+								votes: 0
+						  },
+					expect.any(Context),
+					{}
+				);
 			});
 
 			it("should get the newly created entity", async () => {
@@ -332,7 +371,7 @@ module.exports = (getAdapter, adapterType) => {
 				expect(res).toEqual(docs[0].id);
 
 				expect(entityChanged).toBeCalledTimes(1);
-				expect(entityChanged).toBeCalledWith("remove", docs[0], expect.any(Context), {
+				expect(entityChanged).toBeCalledWith("remove", docs[0], null, expect.any(Context), {
 					softDelete: false
 				});
 			});
@@ -1365,7 +1404,12 @@ module.exports = (getAdapter, adapterType) => {
 	});
 
 	describe("Test caching with additional events", () => {
-		const broker = new ServiceBroker({ logger: false, cacher: "Memory" });
+		const broker = new ServiceBroker({
+			logger: false,
+			cacher: "Memory",
+			metrics: { enabled: true },
+			tracing: { enabled: true }
+		});
 		const svc = broker.createService({
 			name: "posts",
 			mixins: [

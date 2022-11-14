@@ -50,13 +50,18 @@ module.exports = function DatabaseMixin(mixinOpts) {
 			/** @type {Boolean|Array<String>} Subscribe to cache clean event of service dependencies and clear the local cache entries */
 			cacheCleanOnDeps: true,
 			/** @type {Array<String>?} Additional cache keys */
-			additionalKeys: null
+			additionalKeys: null,
+			/** @type {Function?} Custom cache cleaner function */
+			cacheCleaner: null
 		},
 		/** @type {Boolean} Set auto-aliasing fields */
 		rest: true,
 
 		// Entity changed lifecycle event mode. Values: null, "broadcast", "emit". The `null` disables event sending.
 		entityChangedEventType: "broadcast",
+
+		// Add previous entity data to the entity changed event payload in case of update or replace.
+		entityChangedOldEntity: false,
 
 		/** @type {Number} Auto reconnect if the DB server is not available at first connecting */
 		autoReconnect: true,
@@ -280,11 +285,13 @@ module.exports = function DatabaseMixin(mixinOpts) {
 					 * Subscribe to the cache clean event. If it's triggered
 					 * clean the cache entries for this service.
 					 */
-					schema.events[eventName] = async function () {
-						if (this.broker.cacher) {
-							await this.broker.cacher.clean(`${this.fullName}.**`);
-						}
-					};
+					schema.events[eventName] =
+						mixinOpts.cache.cacheCleaner ||
+						async function () {
+							if (this.broker.cacher) {
+								await this.broker.cacher.clean(`${this.fullName}.**`);
+							}
+						};
 				}
 
 				// Subscribe to additional service cache clean events
@@ -306,11 +313,13 @@ module.exports = function DatabaseMixin(mixinOpts) {
 
 					if (additionalEventNames.length > 0) {
 						additionalEventNames.forEach(eventName => {
-							schema.events[eventName] = async function () {
-								if (this.broker.cacher) {
-									await this.broker.cacher.clean(`${this.fullName}.**`);
-								}
-							};
+							schema.events[eventName] =
+								mixinOpts.cache.cacheCleaner ||
+								async function () {
+									if (this.broker.cacher) {
+										await this.broker.cacher.clean(`${this.fullName}.**`);
+									}
+								};
 						});
 					}
 				}

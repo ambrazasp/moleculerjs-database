@@ -490,6 +490,14 @@ module.exports = function (mixinOpts) {
 					map[id] = doc;
 					return map;
 				}, {});
+			} else if (multi && opts.reorderResult) {
+				// Reorder result to the same as ID array (it needs for DataLoader)
+				const tmp = [];
+				id.forEach(id => {
+					const idx = unTransformedRes.findIndex(doc => doc[idField] == id);
+					tmp.push(idx != -1 ? result[idx] : null);
+				});
+				result = tmp;
 			} else if (!multi) {
 				result = result[0];
 			}
@@ -525,7 +533,7 @@ module.exports = function (mixinOpts) {
 				result = await this.transformResult(adapter, result, {}, ctx);
 			}
 
-			await this._entityChanged("create", result, ctx, opts);
+			await this._entityChanged("create", result, null, ctx, opts);
 			timeEnd();
 			this.finishSpan(ctx, span);
 
@@ -564,7 +572,7 @@ module.exports = function (mixinOpts) {
 				result = await this.transformResult(adapter, result, {}, ctx);
 			}
 
-			await this._entityChanged("create", result, ctx, { ...opts, batch: true });
+			await this._entityChanged("create", result, null, ctx, { ...opts, batch: true });
 
 			timeEnd();
 			this.finishSpan(ctx, span);
@@ -589,10 +597,17 @@ module.exports = function (mixinOpts) {
 			let id = this._getIDFromParams(params);
 
 			// Call because it throws error if entity is not exist
-			const entity = await this.resolveEntities(ctx, params, {
-				transform: false,
-				throwIfNotExist: true
-			});
+			let entity = await this.resolveEntities(
+				ctx,
+				{
+					[this.$primaryField.name]: id,
+					scope: opts.scope
+				},
+				{
+					transform: false,
+					throwIfNotExist: true
+				}
+			);
 
 			const rawUpdate = opts.raw === true;
 			if (!rawUpdate) {
@@ -623,10 +638,11 @@ module.exports = function (mixinOpts) {
 
 			if (opts.transform !== false) {
 				result = await this.transformResult(adapter, result, {}, ctx);
+				entity = await this.transformResult(adapter, entity, {}, ctx);
 			}
 
 			if (hasChanges) {
-				await this._entityChanged("update", result, ctx, opts);
+				await this._entityChanged("update", result, entity, ctx, opts);
 			}
 			timeEnd();
 			this.finishSpan(ctx, span);
@@ -641,6 +657,7 @@ module.exports = function (mixinOpts) {
 		 * @param {Object} params
 		 * @param {Object} params.query
 		 * @param {Object} params.changes
+		 * @param {String|Array<String>|Boolean} params.scope
 		 * @param {Object?} opts
 		 */
 		async updateEntities(ctx, params = ctx.params, opts = {}) {
@@ -652,7 +669,7 @@ module.exports = function (mixinOpts) {
 
 			const _entities = await this.findEntities(
 				ctx,
-				{ query: params.query },
+				{ query: params.query, scope: params.scope },
 				{ transform: false }
 			);
 
@@ -668,7 +685,10 @@ module.exports = function (mixinOpts) {
 							...params.changes,
 							[this.$primaryField.name]: id
 						},
-						opts
+						{
+							scope: params.scope,
+							...opts
+						}
 					);
 				})
 			);
@@ -693,10 +713,17 @@ module.exports = function (mixinOpts) {
 			let id = this._getIDFromParams(params);
 
 			// Call because it throws error if entity is not exist
-			const entity = await this.resolveEntities(ctx, params, {
-				transform: false,
-				throwIfNotExist: true
-			});
+			let entity = await this.resolveEntities(
+				ctx,
+				{
+					[this.$primaryField.name]: id,
+					scope: opts.scope
+				},
+				{
+					transform: false,
+					throwIfNotExist: true
+				}
+			);
 			const adapter = await this.getAdapter(ctx);
 
 			params = await this.validateParams(ctx, params, {
@@ -719,9 +746,10 @@ module.exports = function (mixinOpts) {
 
 			if (opts.transform !== false) {
 				result = await this.transformResult(adapter, result, {}, ctx);
+				entity = await this.transformResult(adapter, entity, {}, ctx);
 			}
 
-			await this._entityChanged("replace", result, ctx, opts);
+			await this._entityChanged("replace", result, entity, ctx, opts);
 
 			timeEnd();
 			this.finishSpan(ctx, span);
@@ -744,10 +772,17 @@ module.exports = function (mixinOpts) {
 			let id = this._getIDFromParams(params);
 			const origID = id;
 
-			let entity = await this.resolveEntities(ctx, params, {
-				transform: false,
-				throwIfNotExist: true
-			});
+			let entity = await this.resolveEntities(
+				ctx,
+				{
+					[this.$primaryField.name]: id,
+					scope: opts.scope
+				},
+				{
+					transform: false,
+					throwIfNotExist: true
+				}
+			);
 
 			const adapter = await this.getAdapter(ctx);
 
@@ -761,7 +796,10 @@ module.exports = function (mixinOpts) {
 
 			id = this._sanitizeID(id, opts);
 
-			if (this.$softDelete) {
+			let softDelete = this.$softDelete;
+			if (opts.softDelete === false) softDelete = false;
+
+			if (softDelete) {
 				this.logger.debug(`Soft delete an entity`, id, params);
 				// Soft delete
 				entity = await adapter.updateById(id, params);
@@ -775,9 +813,9 @@ module.exports = function (mixinOpts) {
 				entity = await this.transformResult(adapter, entity, params, ctx);
 			}
 
-			await this._entityChanged("remove", entity, ctx, {
+			await this._entityChanged("remove", entity, null, ctx, {
 				...opts,
-				softDelete: !!this.$softDelete
+				softDelete: !!softDelete
 			});
 
 			timeEnd();
@@ -792,6 +830,7 @@ module.exports = function (mixinOpts) {
 		 * @param {Context} ctx
 		 * @param {Object?} params
 		 * @param {Object?} params.query
+		 * @param {String|Array<String>|Boolean} params.scope
 		 * @param {Object?} opts
 		 */
 		async removeEntities(ctx, params = ctx.params, opts = {}) {
@@ -803,7 +842,7 @@ module.exports = function (mixinOpts) {
 
 			const _entities = await this.findEntities(
 				ctx,
-				{ query: params.query },
+				{ query: params.query, scope: params.scope },
 				{ transform: false }
 			);
 
@@ -818,7 +857,10 @@ module.exports = function (mixinOpts) {
 						{
 							[this.$primaryField.name]: id
 						},
-						opts
+						{
+							scope: params.scope,
+							...opts
+						}
 					);
 				})
 			);
@@ -843,7 +885,7 @@ module.exports = function (mixinOpts) {
 			const adapter = await this.getAdapter(ctx);
 			const result = await adapter.clear(params);
 
-			await this._entityChanged("clear", null, ctx);
+			await this._entityChanged("clear", null, null, ctx);
 
 			timeEnd();
 			this.finishSpan(ctx, span);
@@ -883,44 +925,56 @@ module.exports = function (mixinOpts) {
 
 		/**
 		 * Called when an entity changed.
+		 *
 		 * @param {String} type
 		 * @param {any} data
+		 * @param {any} oldData
 		 * @param {Context?} ctx
 		 * @param {Object?} opts
 		 */
-		async _entityChanged(type, data, ctx, opts = {}) {
+		async _entityChanged(type, data, oldData, ctx, opts = {}) {
 			if (cacheOpts && cacheOpts.eventType) {
 				const eventName = cacheOpts.eventName || `cache.clean.${this.name}`;
 				if (eventName) {
-					// Cache cleaning event
-					(ctx || this.broker)[cacheOpts.eventType](eventName, {
+					const payload = {
 						type,
 						data,
 						opts
-					});
+					};
+
+					// Cache cleaning event
+					(ctx || this.broker)[cacheOpts.eventType](eventName, payload);
 				}
 			}
 
-			await this.entityChanged(type, data, ctx, opts);
+			await this.entityChanged(type, data, oldData, ctx, opts);
 		},
 
 		/**
 		 * Send entity lifecycle events
+		 *
 		 * @param {String} type
 		 * @param {any} data
+		 * @param {any} oldData
 		 * @param {Context?} ctx
 		 * @param {Object?} opts
 		 */
-		async entityChanged(type, data, ctx, opts) {
+		async entityChanged(type, data, oldData, ctx, opts) {
 			if (mixinOpts.entityChangedEventType) {
 				const op = type + (type == "clear" ? "ed" : "d");
 				const eventName = `${this.name}.${op}`;
 
-				(ctx || this.broker)[mixinOpts.entityChangedEventType](eventName, {
+				const payload = {
 					type,
 					data,
 					opts
-				});
+				};
+
+				if (mixinOpts.entityChangedOldEntity) {
+					payload.oldData = oldData;
+				}
+
+				(ctx || this.broker)[mixinOpts.entityChangedEventType](eventName, payload);
 			}
 		},
 

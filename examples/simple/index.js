@@ -51,7 +51,7 @@ broker.createService({
 	mixins: [
 		DbService({
 			adapter: {
-				type: "Knex",
+				/*type: "Knex",
 				options: {
 					knex: {
 						client: "sqlite3",
@@ -59,14 +59,15 @@ broker.createService({
 							filename: ":memory:"
 						}
 					}
-				}
+				}*/
+				type: "MongoDB"
 			}
 		})
 	],
 
 	settings: {
 		fields: {
-			id: { type: "string", primaryKey: true, columnName: "_id" },
+			id: { type: "string", primaryKey: true, columnName: "_id", generated: "user" },
 			title: {
 				type: "string",
 				max: 255,
@@ -93,7 +94,7 @@ broker.createService({
 
 	async started() {
 		const adapter = await this.getAdapter();
-		await adapter.createTable();
+		if (adapter.createTable) await adapter.createTable();
 
 		await this.clearEntities();
 	}
@@ -105,6 +106,7 @@ broker
 	.then(async () => {
 		// Create a new post
 		let post = await broker.call("posts.create", {
+			id: "63397c8302751c0c0abd3609",
 			title: "My first post",
 			content: "Content of my first post..."
 		});

@@ -83,15 +83,25 @@ class MongoDBAdapter extends BaseAdapter {
 			this.client.on("open", () => this.logger.info(`MongoDB client has connected.`));
 			this.client.on("close", () => this.logger.warn("MongoDB client has disconnected."));
 			this.client.on("error", err => this.logger.error("MongoDB error.", err));
-
-			// Connect the client to the server
-			await this.client.connect();
+			try {
+				// Connect the client to the server
+				await this.client.connect();
+			} catch (err) {
+				// We remove the client from the global store if the connection failed because of reconnecting
+				this.removeAdapterFromClientGlobalStore(this.storeKey);
+				throw err;
+			}
 		} else {
 			this.logger.debug("Using an existing MongoDB client", this.storeKey);
-			if (!this.client.topology.isConnected()) {
+			if (!this.client.topology || !this.client.topology.isConnected()) {
 				this.logger.debug("Waiting for the connected state of MongoDB client...");
+				// This silent timer blocks the process to avoid exiting while wait for connecting
+				const emptyTimer = setInterval(() => {}, 1000);
 				await new this.Promise(resolve => {
-					this.client.once("open", resolve);
+					this.client.once("open", () => {
+						clearInterval(emptyTimer);
+						resolve();
+					});
 				});
 			}
 		}
@@ -228,6 +238,9 @@ class MongoDBAdapter extends BaseAdapter {
 	 *
 	 */
 	async insert(entity) {
+		if (entity._id) {
+			entity._id = this.stringToObjectID(entity._id);
+		}
 		const res = await this.collection.insertOne(entity);
 		if (!res.acknowledged) throw new Error("MongoDB insertOne failed.");
 		return entity;
@@ -243,6 +256,11 @@ class MongoDBAdapter extends BaseAdapter {
 	 *
 	 */
 	async insertMany(entities, opts = {}) {
+		for (const entity of entities) {
+			if (entity._id) {
+				entity._id = this.stringToObjectID(entity._id);
+			}
+		}
 		const res = await this.collection.insertMany(entities);
 		if (!res.acknowledged) throw new Error("MongoDB insertMany failed.");
 		return opts.returnEntities ? entities : Object.values(res.insertedIds);
