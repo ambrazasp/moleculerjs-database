@@ -411,7 +411,7 @@ class KnexAdapter extends BaseAdapter {
 	 * @memberof MemoryDbAdapter
 	 */
 	computeQuery(q, query, fieldName = '') {
-		if (!q || typeof query !== "object" || Array.isArray(query)) return q;
+		if (!query || typeof query !== "object" || Array.isArray(query)) return q;
 
 		const assignQueryArrayElements = (builder, value, firstElementQuery = 'where', everyOtherElementQuery = '') => {
 			return value.forEach((query, i) => {
