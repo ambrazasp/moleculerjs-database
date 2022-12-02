@@ -278,6 +278,8 @@ module.exports = function (mixinOpts) {
 			}
 
 			const sanitizeValue = async (field, value) => {
+				if (field.raw) return value;
+
 				if (value !== undefined) {
 					// Custom validator
 					// Syntax: `validate: (value, entity, field, ctx) => value.length > 6 || "Too short"`
