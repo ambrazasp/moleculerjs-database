@@ -380,7 +380,9 @@ module.exports = function (mixinOpts) {
 			};
 
 			const setValue = async (field, value) => {
-				value = await sanitizeValue(field, value);
+				if (!field.raw) {
+					value = await sanitizeValue(field, value);
+				}
 
 				if (value !== undefined) {
 					if (field.type == "array" || field.type == "object") {
