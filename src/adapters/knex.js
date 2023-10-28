@@ -382,6 +382,15 @@ class KnexAdapter extends BaseAdapter {
 				});
 			}
 
+			// Sort raw
+			if (!opts.counting && params.sortRaw) {
+				let pSortRaw = params.sortRaw;
+				if (typeof pSortRaw == "string") pSortRaw = [pSortRaw];
+				pSortRaw.forEach(raw => {
+					q = q.orderByRaw(raw);
+				});
+			}
+
 			// Limit
 			if (!opts.counting && _.isNumber(params.limit) && params.limit > 0)
 				q.limit(params.limit);
