@@ -377,7 +377,8 @@ class KnexAdapter extends BaseAdapter {
 				let pSort = params.sort;
 				if (typeof pSort == "string") pSort = [pSort];
 				pSort.forEach(field => {
-					if (field.startsWith("-")) q = q.orderBy(field.slice(1), "desc");
+					if (field.startsWith("&")) q = q.orderByRaw(field.slice(1));
+					else if (field.startsWith("-")) q = q.orderBy(field.slice(1), "desc");
 					else q = q.orderBy(field, "asc");
 				});
 			}
