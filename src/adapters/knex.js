@@ -462,6 +462,8 @@ class KnexAdapter extends BaseAdapter {
 				}
 			} else if (typeof fieldValue === "object") { // inheritance of query operators
 				q = q.where((builder) => this.computeQuery(builder, fieldValue, key));
+			} else if (key === "$ilike") { // custom - `ilike`
+				q = q.where(fieldName, "ilike", fieldValue);
 			} else { // default operator
 				q = q.where(key, fieldValue);
 			}
