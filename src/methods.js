@@ -1071,7 +1071,11 @@ module.exports = function (mixinOpts) {
 				if (_.isPlainObject(res[columnName]) && recursive) {
 					res[columnName] = this._queryFieldNameConversion(query[fieldName], recursive);
 				} else if (_.isArray(query[fieldName]) && recursive) {
-					res[columnName] = query[fieldName].map(item => this._queryFieldNameConversion(item, recursive));
+					res[columnName] = query[fieldName].map(item =>
+						_.isPlainObject(item)
+							? this._queryFieldNameConversion(item, recursive)
+							: item
+					);
 				} else {
 					res[columnName] = query[fieldName];
 				}
