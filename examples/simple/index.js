@@ -67,7 +67,7 @@ broker.createService({
 
 	settings: {
 		fields: {
-			id: { type: "string", primaryKey: true, columnName: "_id", generated: "user" },
+			id: { type: "string", primaryKey: true, columnName: "_id" /*, generated: "user"*/ },
 			title: {
 				type: "string",
 				max: 255,
